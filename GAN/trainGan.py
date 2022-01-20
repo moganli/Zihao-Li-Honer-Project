@@ -78,11 +78,12 @@ def main():
     assert tf.__version__.startswith('2.')
 
     # 重要训练残数
-    z_dim = 12  # 隐藏向量z的长度
-    epochs = 30000  # 训练步数
-    batch_size = 128  # batch size
+    z_dim = 120  # 隐藏向量z的长度
+    epochs = 3000000  # 训练步数
+    batch_size = 64  # batch size
     learning_rate = 0.0002
     is_training = True
+
 
     # 导入图片数据并处理
     img_path = glob.glob(r'E:\dataSet\tiny-imagenet-200\train\n01443537\images\*.JPEG')
@@ -96,7 +97,7 @@ def main():
     G.build(input_shape=(None, z_dim))
 
     D = Discriminator()
-    D.build(input_shape=(None, z_dim))
+    D.build(input_shape=(None, 64,64,3))
 
     # 优化器
     Goptimizer = tf.optimizers.Adam(learning_rate=learning_rate, beta_1=0.5)
