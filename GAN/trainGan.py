@@ -1,6 +1,11 @@
 import os
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import numpy as np
 import tensorflow as tf
+print(tf.__version__)
+sess= tf.compat.v1.Session()
+#tf.device('/gpu:0')
 #from tensorflow import keras
 from PIL import Image
 # toimage
@@ -9,7 +14,6 @@ from PIL import Image
 import glob
 from gan import Generator, Discriminator
 from data import make_anime_dataset
-
 
 def save_result(val_out, val_block_size, image_path, color_mode):
     def preprocess(img):
@@ -39,7 +43,6 @@ def save_result(val_out, val_block_size, image_path, color_mode):
     if final_image.shape[2] == 1:
         final_image = np.squeeze(final_image, axis=2)
     Image.fromarray(final_image).save(image_path)
-
 
 def celoss_one(logits):
     loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=tf.ones_like(logits))
@@ -119,10 +122,10 @@ def main():
             g_loss = g_loss_fn(G, D, batch_z, is_training)
         grads = tape.gradient(g_loss, G.trainable_variables)
         Goptimizer.apply_gradients(zip(grads, G.trainable_variables))
-        #每100次 存储一次用来观察
+        # 每100次 打印一次损失用来观察
         if epoch % 100 == 0:
             print(epoch,'D loss',d_loss,'G loss', g_loss)
-
+        # 并保存图片
             z = tf.random.normal([120, z_dim])
             fake_image = G(z, training=False)
             img_path = os.path.join(r'C:\Users\86135\Desktop\Zihao-Li-Honer-Project\images', 'gan_%d.png' % epoch)
