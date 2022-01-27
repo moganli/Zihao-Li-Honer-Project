@@ -54,21 +54,50 @@ def celoss_zero(logits):
     return tf.reduce_mean(loss)
 
 
-def d_loss_fn(G, D, batch_z, batch_x, training):
-    gimage = G(batch_z, training)
-    d_fake_logits = D(gimage, training)
+def d_loss_fn(G, D, batch_z, batch_x, training,isWgan):
+    gImage = G(batch_z, training)
+    d_fake_logits = D(gImage, training)
     d_real_logits = D(batch_x, training)
 
     d_loss_real = celoss_one(d_real_logits)
     d_loss_fake = celoss_zero(d_fake_logits)
 
-    loss = d_loss_real + d_loss_fake
+    gradientPenalty = gradient_Penalty(D,batch_x,gImage)
+
+    if isWgan:
+        loss = d_loss_real + d_loss_fake + gradientPenalty
+    else:
+        loss = d_loss_real + d_loss_fake
+
     return loss
+
+
+def gradient_Penalty(D,batch_x,gImage):
+    batchsize = batch_x.shape[0]
+    r=tf.random.uniform([batchsize,1,1,1])
+
+    r=tf.broadcast_to(r, batch_x.shape)
+
+    interplate = r * batch_x +(1-r) * gImage
+
+    with tf.GradientTape() as tape:
+        tape.watch([interplate])
+        Dlogits=D(interplate)
+    grads= tape.gradient(Dlogits,interplate)
+    grads= tf.reshape(grads,
+                      [grads.shape[0],
+                       -1])
+    gp = tf.norm(grads,axis=1)
+    gp = tf.norm(grads,axis=1)
+    gp = tf.reduce_mean((gp-1)**2)
+
+    return gp
 
 
 def g_loss_fn(G, D, batch_z, training):
     fake_image = G(batch_z, training)
     d_fake_logits = D(fake_image, training)
+
     loss = celoss_one(d_fake_logits)
     return loss
 
@@ -77,8 +106,8 @@ def main():
     # 初始随机值
     tf.random.set_seed(1216)
     np.random.seed(1216)
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-    assert tf.__version__.startswith('2.')
+    #os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+    #assert tf.__version__.startswith('2.')
 
     # 重要训练残数
     z_dim = 120  # 隐藏向量z的长度
@@ -111,8 +140,8 @@ def main():
         batch_x = next(db_iter)
 
         # 训练辨别器
-        with tf.GradientTape() as tape:  # 梯度带， 求导
-            d_loss = d_loss_fn(G, D, batch_z, batch_x, is_training)
+        with tf.GradientTape() as tape:  # 梯度带， 求导(?)
+            d_loss = d_loss_fn(G, D, batch_z, batch_x, is_training,isWgan=True)
         grads = tape.gradient(d_loss, D.trainable_variables)
         # 迭代更新
         Doptimizer.apply_gradients(zip(grads, D.trainable_variables))
@@ -128,7 +157,7 @@ def main():
         # 并保存图片
             z = tf.random.normal([120, z_dim])
             fake_image = G(z, training=False)
-            img_path = os.path.join(r'C:\Users\86135\Desktop\Zihao-Li-Honer-Project\images', 'gan_%d.png' % epoch)
+            img_path = os.path.join(r'C:\Users\86135\Desktop\Zihao-Li-Honer-Project\images', '%d.png' % epoch)
             save_result(fake_image.numpy(), 10, img_path, color_mode='P')
 
 
