@@ -1,29 +1,61 @@
+
 import multiprocessing
 import tensorflow as tf
+import numpy as np
+from PIL import Image
 
 
-def make_anime_dataset(img_paths,
-                       batch_size,
-                       resize=64,
-                       drop_remainder=True,
-                       shuffle=True,
-                       repeat=1):
-    @tf.function#使用@tf.function加快训练速度
+def save_result(val_out, val_block_size, image_path, color_mode):
+    def preprocess(img):
+        img = ((img + 1.0) * 127.5).astype(np.uint8)
+        # img = img.astype(np.uint8)
+        return img
+
+    preprocessed = preprocess(val_out)
+    final_image = np.array([])
+    single_row = np.array([])
+    for b in range(val_out.shape[0]):
+        # concat image into a row
+        if single_row.size == 0:
+            single_row = preprocessed[b, :, :, :]
+        else:
+            single_row = np.concatenate((single_row, preprocessed[b, :, :, :]), axis=1)
+
+        # concat image row to final_image
+        if (b + 1) % val_block_size == 0:
+            if final_image.size == 0:
+                final_image = single_row
+            else:
+                final_image = np.concatenate((final_image, single_row), axis=0)
+            # reset single row
+            single_row = np.array([])
+
+    if final_image.shape[2] == 1:
+        final_image = np.squeeze(final_image, axis=2)
+    Image.fromarray(final_image).save(image_path)
+
+
+'''
+NOTE:
+The following code is PARTLY from the Internet, and the following is the author's name and source.
+@author:老油条666
+@url:https://www.cxybb.com/article/qq_15054345/113235585
+Copyright statement: This article is an original article by the blogger and follows the CC 4.0 BY-SA copyright agreement. 
+Please attach the original source link and this statement for reprinting.
+
+
+
+'''
+def image_dataset(img_paths,batch_size,resize):
     def _map_fn(img):
         img = tf.image.resize(img, [resize, resize])
         img = tf.clip_by_value(img, 0, 255)
         img = img / 127.5 - 1
         return img
 
-    dataset = disk_image_batch_dataset(img_paths,
-                                       batch_size,
-                                       drop_remainder=drop_remainder,
-                                       map_fn=_map_fn,
-                                       shuffle=shuffle,
-                                       repeat=repeat)
+    dataset = disk_image_batch_dataset(img_paths,batch_size,drop_remainder=True,map_fn=_map_fn,shuffle=True,repeat=1)
     img_shape = (resize, resize, 3)
-    len_dataset = len(img_paths) // batch_size
-    return dataset, img_shape#, len_dataset
+    return dataset, img_shape
 
 
 def batch_dataset(dataset,
@@ -96,7 +128,6 @@ def memory_data_batch_dataset(memory_data,
 
 def disk_image_batch_dataset(img_paths,
                              batch_size,
-                             labels=None,
                              drop_remainder=True,
                              n_prefetch_batch=1,
                              filter_fn=None,
@@ -106,16 +137,8 @@ def disk_image_batch_dataset(img_paths,
                              shuffle=True,
                              shuffle_buffer_size=None,
                              repeat=None):
-    """Batch dataset of disk image for PNG and JPEG.
-    Parameters
-    ----------
-        img_paths : 1d-tensor/ndarray/list of str
-        labels : nested structure of tensors/ndarrays/lists
-    """
-    if labels is None:
-        memory_data = img_paths
-    else:
-        memory_data = (img_paths, labels)
+
+    memory_data = img_paths
 
     def parse_fn(path, *label):
         img = tf.io.read_file(path)
